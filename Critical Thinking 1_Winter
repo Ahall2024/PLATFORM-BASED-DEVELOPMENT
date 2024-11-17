@@ -10,7 +10,7 @@ class MainActivity {
 
         @JvmStatic
         fun main(args: Array<String>) {
-            println("Hello World")
+            println("Hello, Andriod!")
 
         }
 
@@ -36,7 +36,7 @@ activity_main.xml
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
+        android:text="Hello, Andriod!"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

@@ -1,0 +1,278 @@
+**activity_main.xml (Main Activity Layout)**
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/editTextTask"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter task"
+        android:padding="10dp"
+        android:layout_marginBottom="10dp" />
+
+    <Button
+        android:id="@+id/buttonAdd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add Task" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewTasks"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+</LinearLayout>
+
+**task_item.xml (Layout for each Task Item in RecyclerView)**
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="10dp">
+
+    <CheckBox
+        android:id="@+id/checkBoxCompleted"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="5dp" />
+
+    <TextView
+        android:id="@+id/textViewTask"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Task"
+        android:textSize="18sp" />
+
+    <ImageButton
+        android:id="@+id/buttonDelete"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@android:drawable/ic_delete"
+        android:contentDescription="Delete Task" />
+</LinearLayout>
+
+**Task.kt (Task Model)**
+
+data class Task (
+    var id: Int = 0,
+    var taskName: String,
+    var isComplete: Boolean = false
+        ) {
+    val isCompleted: Any
+}
+
+**TaskDaseHelper.kt (Database Helper)**
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+
+class TaskDataBaseHelper(context: Context) :
+    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    companion object {
+        const val DATABASE_NAME = "tasks.db"
+        const val DATABASE_VERSION = 1
+        const val TABLE_NAME = "tasks"
+        const val COLUMN_ID = "id"
+        const val COLUMN_TASK_NAME = "taskName"
+        const val COLUMN_IS_COMPLETED = "isCompleted"
+    }
+
+    override fun onCreate(db: SQLiteDatabase?) {
+        val createTable = """
+            CREATE TABLE $TABLE_NAME (
+                $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COLUMN_TASK_NAME TEXT,
+                $COLUMN_IS_COMPLETED INTEGER
+            )
+        """.trimIndent()
+        db?.execSQL(createTable)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        db?.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+        onCreate(db)
+    }
+
+    fun addTask(task: Task) {
+        val db = writableDatabase
+        val insertQuery = """
+            INSERT INTO $TABLE_NAME ($COLUMN_TASK_NAME, $COLUMN_IS_COMPLETED)
+            VALUES ('${task.taskName}', ${if (task.isCompleted as Boolean) 1 else 0})
+        """.trimIndent()
+        db.execSQL(insertQuery)
+        db.close()
+    }
+
+    fun deleteTask(taskId: Int) {
+        val db = writableDatabase
+        val deleteQuery = "DELETE FROM $TABLE_NAME WHERE $COLUMN_ID = $taskId"
+        db.execSQL(deleteQuery)
+        db.close()
+    }
+
+    @SuppressLint("Range")
+    fun getAllTasks(): List<Task> {
+        val db = readableDatabase
+        val tasks = mutableListOf<Task>()
+        val selectQuery = "SELECT * FROM $TABLE_NAME"
+        val cursor = db.rawQuery(selectQuery, null)
+
+        if (cursor.moveToFirst()) {
+            do {
+                val task = Task(
+                    cursor.getInt(cursor.getColumnIndex(COLUMN_ID)),
+                    cursor.getString(cursor.getColumnIndex(COLUMN_TASK_NAME)),
+                    cursor.getInt(cursor.getColumnIndex(COLUMN_IS_COMPLETED)) == 1
+                )
+                tasks.add(task)
+            } while (cursor.moveToNext())
+        }
+
+        cursor.close()
+        db.close()
+        return tasks
+    }
+
+    fun updateTaskStatus(task: Task) {
+        val db = writableDatabase
+        val updateQuery = """
+            UPDATE $TABLE_NAME SET $COLUMN_IS_COMPLETED = ${if (task.isCompleted as Boolean) 1 else 0}
+            WHERE $COLUMN_ID = ${task.id}
+        """.trimIndent()
+        db.execSQL(updateQuery)
+        db.close()
+    }
+}
+
+**TaskAdapter.kt**
+
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.CheckBox
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.example.todo.R
+
+class TaskAdapter(
+    private val context: Context,
+    private val tasks: MutableList<Task>,
+    private val taskClickListener: (Task) -> Unit,
+    private val deleteClickListener: (Task) -> Unit
+) : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>() {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
+        val view = LayoutInflater.from(context).inflate(R.layout.task_item, parent, false)
+        return TaskViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
+        val task = tasks[position]
+        holder.taskTextView.text = task.taskName
+        holder.checkBox.isChecked = task.isCompleted
+
+        holder.checkBox.setOnCheckedChangeListener { _, isChecked ->
+            task.isCompleted = isChecked
+            taskClickListener(task)
+        }
+
+        holder.deleteButton.setOnClickListener {
+            deleteClickListener(task)
+        }
+    }
+
+    override fun getItemCount(): Int = tasks.size
+    fun notifyItemInserted(i: Int) {
+
+    }
+
+    inner class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val taskTextView: TextView = itemView.findViewById(R.id.textViewTask)
+        val checkBox: CheckBox = itemView.findViewById(R.id.checkBoxCompleted)
+        val deleteButton: ImageButton = itemView.findViewById(R.id.buttonDelete)
+    }
+}
+
+**MainActivity.kt**
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.todo.R
+
+class TaskDatabaseHelper {
+    fun getAllTasks(): Any {
+
+    }
+
+    fun addTask(task: Task) {
+
+    }
+
+    fun updateTaskStatus(task: Task) {
+
+    }
+
+    fun deleteTask(task: Task) {
+
+    }
+
+}
+
+private fun Any.toMutableList(): MutableList<Task> {
+
+}
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var dbHelper: TaskDatabaseHelper
+    private lateinit var adapter: TaskAdapter
+    private lateinit var tasks: MutableList<Task>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        dbHelper = TaskDatabaseHelper(this)
+        tasks = dbHelper.getAllTasks().toMutableList()
+
+        val recyclerView: RecyclerView = findViewById(R.id.recyclerViewTasks)
+        adapter = TaskAdapter(this, tasks, ::updateTaskStatus, ::deleteTask)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = adapter
+
+        val addButton: Button = findViewById(R.id.buttonAdd)
+        val editText: EditText = findViewById(R.id.editTextTask)
+
+        addButton.setOnClickListener {
+            val taskName = editText.text.toString().trim()
+            if (taskName.isNotEmpty()) {
+                val task = Task(taskName = taskName)
+                dbHelper.addTask(task)
+                tasks.add(task)
+                adapter.notifyItemInserted(tasks.size - 1)
+                editText.text.clear()
+            }
+        }
+    }
+
+    private fun updateTaskStatus(task: Task) {
+        dbHelper.updateTaskStatus(task)
+    }
+

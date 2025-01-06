@@ -1,0 +1,49 @@
+**build.gradle**
+
+dependencies {
+    implementation 'com.jakewharton.timber:timber:5.0.1'
+}
+
+
+**MyApplication.kt**
+
+import android.app.Application
+import timber.log.Timber
+
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+
+        // Initialize Timber for logging
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        } else {
+            // For release builds, you might want to log to Crashlytics or other services
+            // Timber.plant(CrashReportingTree())
+        }
+    }
+}
+
+
+**MainActivity.kt**
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import timber.log.Timber
+
+class MainActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Example error logging
+        try {
+            // Some code that may cause an error
+            val result = 10 / 0
+        } catch (e: Exception) {
+            // Log the error using Timber
+            Timber.e(e, "Error in MainActivity")
+        }
+    }
+}
